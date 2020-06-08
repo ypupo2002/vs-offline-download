@@ -1,6 +1,6 @@
 # vs-offline-download
 
-Small utility to download Visual Studio 2019.
+Small utility to download Visual Studio 2019 layout files.
 
 ## The Problem
 
