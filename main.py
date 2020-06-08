@@ -99,7 +99,7 @@ def downloadChannel(channel):
 def downloadManifest():
     global manifest
     print("Downloading VS manifest")
-    with open('temp/channel.json') as channelFile:
+    with open('temp/channel.json', encoding='utf-8') as channelFile:
         data = json.load(channelFile)
         print(f'Product ID: {data["info"]["id"]}')
 
@@ -107,7 +107,7 @@ def downloadManifest():
 
         downloadFile(manifestItem["payloads"][0]["url"], "temp/manifest.json")
 
-        with open('temp/manifest.json') as manifestFile:
+        with open('temp/manifest.json', encoding='utf-8') as manifestFile:
             manifest = json.load(manifestFile)
 
 def downloadPackageDependencies(package):
