@@ -87,7 +87,9 @@ def downloadFile(url, file, sha256sum=None, totalSize=0, retries=10):
     print()
     if (success):
         if (sha256sum != None) and not verifyFile(file, sha256sum):
-            raise f"Error verifying sha256sum {sha256sum} of file {file} downloades from {url}"
+            print(f"Error verifying sha256sum {sha256sum} of file {file} downloades from {url}, removing existing file")
+            os.remove(file)
+            downloadFile(url, file, sha256sum, totalSize, retries)
     else:
         raise f"Error downloadong file {file} from {url}"
 
@@ -208,6 +210,7 @@ def cleanup():
 
         if not exists:
             print(f"cleanup {dirname}")
+            print(package)
             # shutil.rmtree(os.path.join(location, dirname))
 
 def main(argv):
