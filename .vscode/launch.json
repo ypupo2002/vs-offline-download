@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "main.py",
             "console": "integratedTerminal",
-            "args": ["-l", "/mnt/d/Installs/vs2019comm/", "-c"]
+            "args": ["-l", "/mnt/d/Installs/vs2019ent/", "-c", "-p", "Enterprise"]
         }
     ]
 }
