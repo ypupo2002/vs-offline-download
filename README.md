@@ -45,9 +45,14 @@ This is a multiplatform tool written in python >= 3.6, that allows to download m
 
    `-p` : [Optional] Specifies the product version to download, allowed values: `Community`, `Professional`, `Enterprise`
    
+   `-v` : [Optional] Specifies the product version number to download, allowed values: `16` (2019), `17` (2022), ...
+
+   `-w` : [Optional] Uses the preview channel for the specied version
+
    `-c` : [Optional] Performs a cleanup of old files after the download 
 
    `-l` : [Required] Specifies the location of the layout
+	
 
 After the tool execution and before the use of the VS2019 offline installer it is required to execute a final step: Download the corresponding VS2019 installer (community, Professional or Enterprise) and perform a layout operation:
    ```
