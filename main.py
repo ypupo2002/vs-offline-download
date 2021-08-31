@@ -93,19 +93,24 @@ def downloadFile(url, file, sha256sum=None, totalSize=0, retries=10):
     else:
         raise f"Error downloadong file {file} from {url}"
 
-def downloadChannel(channel):
-    print(f'Downloading VS channel {channel}')
-    url = 'https://aka.ms/vs/16/release/channel'
+def downloadChannel(version, channel):
+    print(f'Downloading VS channel {version} {channel}')
+    url = f'https://aka.ms/vs/{version}/{channel}/channel'
     downloadFile(url, 'temp/channel.json')
     
-def downloadManifest():
+def downloadManifest(channel):
     global manifest
     print("Downloading VS manifest")
+
+    vsItemId = "Microsoft.VisualStudio.Manifests.VisualStudio"
+    if channel == "pre":
+        vsItemId = "Microsoft.VisualStudio.Manifests.VisualStudioPreview"
+
     with open('temp/channel.json', encoding='utf-8') as channelFile:
         data = json.load(channelFile)
         print(f'Product ID: {data["info"]["id"]}')
 
-        manifestItem = Enumerable(data["channelItems"]).where(lambda item: item["id"] == "Microsoft.VisualStudio.Manifests.VisualStudio").first()
+        manifestItem = Enumerable(data["channelItems"]).where(lambda item: item["id"] == vsItemId).first()
 
         downloadFile(manifestItem["payloads"][0]["url"], "temp/manifest.json")
 
@@ -216,13 +221,14 @@ def cleanup():
 def main(argv):
     print("VS Offline installer")
     try:
-        opts, args = getopt.getopt(argv,"hcv:l:p:", ["help", "location"])
+        opts, args = getopt.getopt(argv,"hcw:v:l:p:", ["help", "location", "version", "preview"])
     except getopt.GetoptError:
         help()
         sys.exit(2)
     
-    version = "vs2019"
+    version = "16"
     clean = False
+    channel = "release"
     product = "Community"
     global location
     for opt, arg in opts:
@@ -233,13 +239,15 @@ def main(argv):
             clean = True
         elif opt == '-v' or opt == "--version":
             version = arg
+        elif opt == '-w' or opt == "--preview":
+            channel = "pre"    
         elif opt == '-l' or opt == "--location":
             location = arg
         elif opt == '-p':
             product = arg
-
-    downloadChannel(version)
-    downloadManifest()
+    
+    downloadChannel(version, channel)
+    downloadManifest(channel)
     downloadProduct(product)
     savePackageSelection()
     if clean:
