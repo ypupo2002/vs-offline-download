@@ -5,14 +5,24 @@ import json
 import hashlib
 import os
 import shutil
+import signal
 from py_linq import Enumerable
 from pathlib import Path
 from pathlib import PureWindowsPath
 
 location = "."
+product = ""
 manifest = {}
 downloadedPackages = {}
 lang = "en-US"
+errors = []
+abort = False
+
+def signal_handler(sig, frame):
+    global abort
+    abort = True
+    print('Ctrl+C detected, update aborted!')
+    sys.exit(0)
 
 def help():
     print("Usage:")
@@ -31,6 +41,11 @@ def verifyFile(file, sha256sum):
         return False
 
 def downloadResumableFile(url, file, totalSize):
+    global abort
+
+    if abort:
+        return
+
     try:
         startPos = 0
         if totalSize != 0 and os.path.exists(file):
@@ -61,8 +76,10 @@ def downloadResumableFile(url, file, totalSize):
                 sys.stdout.write(f" {done}% => {dl} / {total_length}")    
                 sys.stdout.flush()
     except:
+        print()
         return False
     
+    print()
     return True
     
 
@@ -75,23 +92,27 @@ def downloadFile(url, file, sha256sum=None, totalSize=0, retries=10):
     else:
         print(f'No sha256sum provided')
 
+    global errors
     currentTry = 0
     success = False
+    retry = True
     dir, _ = os.path.split(file)
     Path(dir).mkdir(parents=True, exist_ok=True)
-    while currentTry<retries and not success:
-        success = downloadResumableFile(url, file, totalSize)
-        if not success:
-            currentTry = currentTry+1
+    while retry and not success:
+        while currentTry<retries and not success:
+            success = downloadResumableFile(url, file, totalSize)
+            if not success:
+                currentTry = currentTry+1
 
-    print()
-    if (success):
-        if (sha256sum != None) and not verifyFile(file, sha256sum):
-            print(f"Error verifying sha256sum {sha256sum} of file {file} downloades from {url}, removing existing file")
-            os.remove(file)
-            downloadFile(url, file, sha256sum, totalSize, retries)
-    else:
-        raise f"Error downloadong file {file} from {url}"
+        if (success):
+            if (sha256sum != None) and not verifyFile(file, sha256sum):
+                print(f"Error verifying sha256sum {sha256sum} of file {file} downloaded from {url}, removing existing file")
+                os.remove(file)
+        elif retry:
+            retry = False
+        else: 
+            errors.append(file)
+            raise f"Error downloadong file {file} from {url}"
 
 def downloadChannel(version, channel):
     print(f'Downloading VS channel {version} {channel}')
@@ -100,6 +121,7 @@ def downloadChannel(version, channel):
     
 def downloadManifest(channel):
     global manifest
+    
     print("Downloading VS manifest")
 
     vsItemId = "Microsoft.VisualStudio.Manifests.VisualStudio"
@@ -121,8 +143,18 @@ def downloadPackageDependencies(package):
     if "dependencies" not in package:
         return
 
-    for dep in package["dependencies"]:
-        downloadPackage(dep)
+    dependencies = package["dependencies"]
+    for dep in dependencies:
+        if "when" in dependencies[dep]:
+            if product in dependencies[dep]["when"]:
+                dep = dependencies[dep]["id"]
+            else:
+                continue
+        
+        chip = None
+        if "chip" in dep:
+            chip = dep["chip"]
+        downloadPackage(dep, chip)
 
 def getPackagePath(package):
     packagePath = f'{package["id"]},version={package["version"]}'
@@ -130,6 +162,10 @@ def getPackagePath(package):
         packagePath = f'{packagePath},chip={package["chip"]}'
     if "language" in package:
         packagePath = f'{packagePath},language={package["language"]}'
+    if "productArch" in package:
+        packagePath = f'{packagePath},productarch={package["productArch"]}'
+    if "machineArch" in package:
+        packagePath = f'{packagePath},machinearch={package["machineArch"]}'
     
     return packagePath
 
@@ -148,28 +184,32 @@ def downloadPackagePayload(package):
         file = os.path.join(location, packagePath, filePath)
         downloadFile(payload["url"], file, payload["sha256"], payload["size"])
 
-def downloadPackage(packageName):
+def downloadPackage(packageName, chip = None):
     global downloadedPackages
     global lang
-    if (packageName in downloadedPackages):
-        return
 
-    package = Enumerable(manifest["packages"]).where(lambda item: item["id"].lower() == packageName.lower() and ("language" not in item or item["language"].lower() in ["neutral", lang.lower()])).first_or_default()
-    if package == None:
+    packages = Enumerable(manifest["packages"]).where(lambda item: item["id"].lower() == packageName.lower() and ("language" not in item or item["language"].lower() in ["neutral", lang.lower()]))
+    if chip is not None: 
+        packages = Enumerable(packages.where(lambda p: p["chip"].lower() == chip.lower()))
+    #package = Enumerable(manifest["packages"]).where(lambda item: item["id"].lower() == packageName.lower() and ("language" not in item or item["language"].lower() in ["neutral", lang.lower()])).first_or_default()
+    
+    if packages.count() == 0:
         if not packageName.lower().endswith(".resources"):
             print(f"package {packageName} not found in manifest")
         return
 
-    print(f"Downloading package {getPackagePath(package)}")
+    for package in packages:
+        packagePath = getPackagePath(package)
+        if (packagePath in downloadedPackages):
+            continue
+        print(f"Downloading package {packagePath}")
+        downloadedPackages[packagePath] = package
+        downloadPackagePayload(package)
+        downloadPackageDependencies(package)
 
-    downloadedPackages[packageName] = package
-
-    downloadPackagePayload(package)
-
-    downloadPackageDependencies(package)
-
-def downloadProduct(product):
-    product = f'Microsoft.VisualStudio.Product.{product}'
+def downloadProduct(productP):
+    global product
+    product = f'Microsoft.VisualStudio.Product.{productP}'
     downloadPackage(product)
 
 def savePackageSelection():
@@ -253,6 +293,8 @@ def main(argv):
     if clean:
         loadPackageSelection()
         cleanup()
+
+signal.signal(signal.SIGINT, signal_handler)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
