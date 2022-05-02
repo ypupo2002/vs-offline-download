@@ -17,10 +17,11 @@ downloadedPackages = {}
 lang = "en-US"
 errors = []
 abort = False
+preset = None
 
 def signal_handler(sig, frame):
     global abort
-    abort = True
+    #abort = True
     print('Ctrl+C detected, update aborted!')
     sys.exit(0)
 
@@ -71,10 +72,9 @@ def downloadResumableFile(url, file, totalSize):
                 dl += len(data)
                 outputFile.write(data)
                 done = int(100 * dl / total_length)
-                sys.stdout.write("\r[%s%s]" % 
-                ('=' * done, ' ' * (100-done)) )
+                sys.stdout.write("\r[%s%s]" % ('=' * done, ' ' * (100-done)) )
                 sys.stdout.write(f" {done}% => {dl} / {total_length}")    
-                sys.stdout.flush()
+                #sys.stdout.flush()
     except:
         print()
         return False
@@ -108,8 +108,8 @@ def downloadFile(url, file, sha256sum=None, totalSize=0, retries=10):
             if (sha256sum != None) and not verifyFile(file, sha256sum):
                 print(f"Error verifying sha256sum {sha256sum} of file {file} downloaded from {url}, removing existing file")
                 os.remove(file)
-        elif retry:
-            retry = False
+        # elif retry:
+        #     retry = False
         else: 
             errors.append(file)
             raise f"Error downloadong file {file} from {url}"
@@ -147,7 +147,8 @@ def downloadPackageDependencies(package):
     for dep in dependencies:
         if "when" in dependencies[dep]:
             if product in dependencies[dep]["when"]:
-                dep = dependencies[dep]["id"]
+                if "id" in dependencies[dep]:
+                    dep = dependencies[dep]["id"]
             else:
                 continue
         
@@ -213,50 +214,45 @@ def downloadProduct(productP):
     downloadPackage(product)
 
 def savePackageSelection():
-    with open('temp/packages.json', 'w') as file:
+    with open(os.path.join(location,'packages.json'), 'w') as file:
         json.dump(downloadedPackages, file)
+
+def loadPreset(presetPath):
+    global preset
+    
+    if not os.path.exists(presetPath):
+        preset = None
+        return
+
+    with open(presetPath) as file:
+        preset = json.load(file)
 
 def loadPackageSelection():
     global downloadedPackages
     if downloadedPackages != {}:
         return
-    with open('temp/packages.json') as file:
+
+    packagesFile = os.path.join(location,'packages.json')
+    if not os.path.exists(packagesFile):
+        downloadedPackages = None
+        return
+
+    with open(packagesFile) as file:
         downloadedPackages = json.load(file)
 
 def cleanup():
     print("Cleanup filesystem")
+    global downloadedPackages
+    if downloadedPackages is None:
+        return
+
     folders = [dI for dI in os.listdir(location) if os.path.isdir(os.path.join(location,dI))]
     for folder in folders:
         dirname = os.path.basename(os.path.normpath(folder))
-        parts = dirname.split(',')
-        packageName = parts[0]
-        version = None
-        chip = None
-        lang = None
-        langs = ["neutral"]
-        for part in parts[1:]:
-            if part.lower().startswith('version'):
-                version = part.lower().replace('version=', '')
-            if part.lower().startswith('chip'):
-                chip = part.lower().replace('chip=', '')
-            if part.lower().startswith('language'):
-                lang = part.lower().replace('language=', '')
-                langs.append(lang.lower())
-        if version == None:
-            continue
 
-        package = Enumerable(manifest["packages"]).where(lambda item: item["id"].lower() == packageName.lower() and ("language" not in item or item["language"].lower() in langs) and (item["version"] == version)).first_or_default()
-        exists = False
-        if not package == None:
-            exists = True
-            exists = exists and (version != None and package["version"] == version)
-            # exists = exists and (chip == None or (chip != None and package["chip"].lower() == chip.lower()))
-            exists = exists and (lang == None or (lang != None and package["language"].lower() == lang.lower()))
-
-        if not exists:
+        if not folder in downloadedPackages:
             print(f"cleanup {dirname}")
-            print(package)
-            # shutil.rmtree(os.path.join(location, dirname))
+            shutil.rmtree(os.path.join(location, dirname))
 
 def main(argv):
     print("VS Offline installer")
@@ -294,7 +290,7 @@ def main(argv):
         loadPackageSelection()
         cleanup()
 
-signal.signal(signal.SIGINT, signal_handler)
+#signal.signal(signal.SIGINT, signal_handler)
 
 if __name__ == "__main__":
     main(sys.argv[1:])

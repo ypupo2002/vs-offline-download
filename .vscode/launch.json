@@ -10,7 +10,15 @@
             "request": "launch",
             "program": "main.py",
             "console": "integratedTerminal",
-            "args": ["-l", "/mnt/d/vs2022comm/", "-c", "-p", "Community", "-v", "17"]
+            "args": ["-l", "/mnt/d/vs2022comm-c/", "-p", "Community", "-v", "17"]
+        },
+        {
+            "name": "vs20019comm",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "args": ["-l", "/mnt/d/vs2019comm/", "-p", "Community", "-v", "16"]
         }
     ]
 }
